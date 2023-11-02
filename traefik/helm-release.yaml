@@ -1,0 +1,202 @@
+apiVersion: helm.toolkit.fluxcd.io/v2beta1
+kind: HelmRelease
+metadata:
+  name: traefik
+  namespace: traefik
+spec:
+  interval: 1m
+  timeout: 20m
+  install:
+    crds: CreateReplace
+  upgrade:
+    crds: CreateReplace
+  chart:
+    spec:
+      chart: traefik
+      version: 24.0.0
+      sourceRef:
+        kind: HelmRepository
+        name: traefik
+        namespace: flux-system
+  values:
+    autoscaling:
+      enabled: true
+      minReplicas: 1
+      maxReplicas: 3
+      metrics:
+      - type: Resource
+        resource:
+          name: cpu
+          target:
+            type: Utilization
+            averageUtilization: 80
+    resources:
+      requests:
+        cpu: 500m
+        memory: 150Mi
+      limits:
+        cpu: 1
+        memory: 500Mi
+    deployment:
+      replicas: null
+      strategy:
+        type: RollingUpdate
+        rollingUpdate:
+          maxSurge: 1
+          maxUnavailable: 0
+    #   logs:
+    #   access:
+    #     enabled: true
+    #     format: json
+    metrics:
+      prometheus:
+        enabled: true
+        addEntryPointsLabels: true
+        addServicesLabels: true
+    ingressClass:
+      enabled: true
+      fallbackApiVersion: v1
+      isDefaultClass: true
+    ssl:
+      enabled: true
+      certManager:
+        enabled: true
+      enforced: true
+    tlsStore: # Enable once certificates are created
+      default:
+        defaultCertificate:
+          secretName: wildcard-systechs-net-tls-production
+    ports:
+      metrics:
+        expose: true
+        port: 9100
+      web:
+        redirectTo: websecure
+      websecure:
+        tls:
+          enabled: true
+      traefik:
+        expose: true
+    service:
+      spec:
+        externalTrafficPolicy: Local
+    providers:
+      kubernetesCRD:
+        enabled: true # This is so certificates work
+        allowCrossNamespace: true
+        allowExternalNameServices: true
+      kubernetesIngress:
+        enabled: false
+    ingressRoute:
+      dashboard:
+        enabled: false # We setup a manual ingress route below - do not enable this!!
+    entryPoints:
+      metrics:
+        expose: true
+        port: 9100
+      web:
+        http:
+          redirections:
+            entryPoint:
+              to: https
+              scheme: https
+      websecure:
+        # address: ":443"
+        forwardedHeaders:
+          insecure: true
+        trustedIPs:
+          - "127.0.0.1/32"
+          - "10.0.0.0/8"
+          - "192.168.0.0/16"
+          - "172.16.0.0/12"
+        http:
+          middlewares:
+            # - www-redir@kubernetescrd
+            - traefik-security@kubernetescrd
+    additionalArguments:
+      - "--api.insecure=false"
+    extraObjects: 
+      - apiVersion: traefik.io/v1alpha1
+        kind: Middleware
+        metadata:
+          name: security
+        spec:
+          headers:
+            accessControlAllowMethods:
+              - "*"
+            accessControlAllowHeaders: 
+              - "*"
+            accessControlAllowOriginListRegex:
+              - "https://(.*)?.systechs\\.net"
+            accessControlMaxAge: 100
+            addVaryHeader: true
+            accessControlAllowCredentials: true
+            frameDeny: false
+            referrerPolicy: "same-origin"
+            contentSecurityPolicy: "*"
+            customResponseHeaders:
+              x-aspnet-version: ""
+              X-Powered-By: ""
+              Server: ""
+      # - apiVersion: traefik.io/v1alpha1
+      #   kind: Middleware
+      #   metadata:
+      #     name: www-redir
+      #   spec:
+      #     redirectRegex:
+      #       regex: ^https://(?:www\.)?(.+)
+      #       replacement: https://${1}
+      #       permanent: true
+      # - apiVersion: traefik.io/v1alpha1
+      #   kind: IngressRouteTCP
+      #   metadata:
+      #     name: redis
+      #     namespace: redis
+      #   spec:
+      #     entryPoints:
+      #       - redis
+      #     routes:
+      #       - match: HostSNI(`*`)
+      #         kind: Rule
+      #         services:
+      #           - name: redis
+      #             port: 6379
+      #             kind: Service
+# # Enable once certificates are created - only up to the IngressRoute
+#
+#      - apiVersion: v1
+#        kind: Secret
+#        metadata:
+#          name: traefik-dashboard-auth-secret
+#          namespace: traefik
+#        type: kubernetes.io/basic-auth
+#        stringData:
+#          username: admin
+#          password: monsterbeast123!
+#
+#      - apiVersion: traefik.io/v1alpha1
+#        kind: Middleware
+#        metadata:
+#          name: dashboard-auth
+#          namespace: traefik
+#        spec:
+#          basicAuth:
+#            secret: traefik-dashboard-auth-secret
+#
+#      - apiVersion: traefik.io/v1alpha1
+#        kind: IngressRoute
+#        metadata:
+#          name: traefik-dashboard
+#          namespace: traefik
+#        spec:
+#          entryPoints:
+#            - websecure
+#          routes:
+#            - match: Host(`traefik-exampledomain.com`) # && (PathPrefix(`/dashboard`) || PathPrefix(`/api`))
+#              kind: Rule
+#              middlewares:
+#                - name: dashboard-auth
+#                  namespace: traefik
+#              services:
+#                - name: api@internal
+#                  kind: TraefikService 
