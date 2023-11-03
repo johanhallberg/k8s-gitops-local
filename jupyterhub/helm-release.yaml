@@ -15,7 +15,7 @@
 #         name: bitnami
 #         namespace: flux-system
 #   values:
-#     # service:
+#     service:
 #       type: ClusterIP
 #       port: 80
 #     ingress:
