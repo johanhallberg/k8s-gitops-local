@@ -65,7 +65,7 @@ spec:
     tlsStore: # Enable once certificates are created
       default:
         defaultCertificate:
-          secretName: wildcard-systechs-net-tls-production
+          secretName: wildcard-local-hallonen--tls-production
     ports:
       metrics:
         expose: true
@@ -127,7 +127,7 @@ spec:
             accessControlAllowHeaders: 
               - "*"
             accessControlAllowOriginListRegex:
-              - "https://(.*)?.systechs\\.net"
+              - "https://(.*)?.local.hallonen\\.se"
             accessControlMaxAge: 100
             addVaryHeader: true
             accessControlAllowCredentials: true
