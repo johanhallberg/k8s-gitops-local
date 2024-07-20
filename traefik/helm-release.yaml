@@ -127,7 +127,7 @@ spec:
             accessControlAllowHeaders: 
               - "*"
             accessControlAllowOriginListRegex:
-              - "https://(.*)?.local.hallonen\\.se"
+              - "https://(.*)?.local\\.hallonen\\.se"
             accessControlMaxAge: 100
             addVaryHeader: true
             accessControlAllowCredentials: true
